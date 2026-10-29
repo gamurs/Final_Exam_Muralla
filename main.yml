@@ -1,0 +1,27 @@
+---
+
+- hosts: all
+  become: true
+  pre_tasks:
+
+  - name: Update repo index
+    package:
+      update_cache: yes
+    changed_when: false
+
+  - name: Install enterprise service
+    package:
+      name:
+        - nginx
+      state: latest
+
+- hosts: centos_host
+  become: true
+  roles:
+    - centos_install
+  tags: done
+
+- hosts: ubuntu_host
+  become: true
+  roles:
+    - ubuntu_install

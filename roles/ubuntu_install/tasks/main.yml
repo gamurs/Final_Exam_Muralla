@@ -1,0 +1,83 @@
+---
+
+- name: install prerequisites
+  package:
+    name:
+      - autoconf
+      - gcc
+      - libc6
+      - make
+      - wget
+      - unzip
+      - apache2
+      - php
+      - libapache2-mod-php
+      - libgd-dev
+      - ufw
+      - openssl
+      - libssl-dev
+      - build-essential
+    state: present
+
+
+- name: download NagiOS from source
+  unarchive:
+    src: https://github.com/NagiosEnterprises/nagioscore/releases/download/nagios-4.5.14/nagios-4.5.14.tar.gz
+    dest: /usr/local/bin
+    remote_src: yes
+    mode: 0755
+    owner: root
+    group: root
+
+- name: disable any existing NagiOS service
+  service:
+    name: nagios
+    state: stopped
+
+- name: Remove Existing NagiOS User
+  user:
+    name: nagios
+    state: absent
+    remove: yes
+
+- name: Remove Existing NagiOS Group
+  group:
+    name: nagcmd
+    state: absent
+
+- name: Make NagiOS User
+  shell: |
+    sudo useradd nagios
+    sudo groupadd nagcmd
+    sudo usermod -a -G nagcmd nagios
+
+- name: Compile NagiOS and install dependencies
+  ansible.builtin.shell: |
+    cd /usr/local/bin/nagios-4.5.14
+    ./configure --with-command-group=nagcmd --with-htppd-conf=/etc/apache2/conf-available
+    make all
+    make install
+    make install-commandmode
+    make install-webconf
+    make install-config
+  become: true
+
+- name: enable firewall
+  shell:
+    cmd: ufw allow Apache
+  become: true
+
+- name: create nagiosadmin user account
+  ansible.builtin.shell:
+    cmd: htpasswd -bc /usr/local/nagios/etc/htpasswd.users nagiosadmin tipqc
+  become: true
+
+- name: start apache
+  service:
+    name: apache2
+    state: restarted
+
+- name: start nagios service
+  service:
+    name: nagios
+    state: started

@@ -1,0 +1,89 @@
+---
+
+- name: install prerequisites
+  package:
+    name:
+      - gcc
+      - glibc
+      - glibc-common
+      - perl
+      - httpd
+      - php
+      - wget
+      - gd
+      - gd-devel
+      - s-nail
+      - postfix
+      - openssl-devel
+      - httpd-tools
+      - make
+      - net-snmp
+    state: latest
+
+- name: download NagiOS from source
+  unarchive:
+    src: https://github.com/NagiosEnterprises/nagioscore/releases/download/nagios-4.5.14/nagios-4.5.14.tar.gz
+    dest: /usr/local/bin
+    remote_src: yes
+    mode: 0755
+    owner: root
+    group: root
+
+- name: disable existing NagiOS service
+  service:
+    name: nagios
+    state: stopped
+
+- name: remove Existing NagiOS User
+  user:
+    name: nagios
+    state: absent
+    remove: yes
+
+- name: remove Existing NagiOS Group
+  group:
+    name: nagcmd
+    state: absent
+
+- name: Create NagiOS User and Group
+  shell: |
+    sudo useradd nagios
+    sudo groupadd nagcmd
+    sudo usermod -a -G nagcmd nagios
+
+- name: Compile NagiOS and install dependencies
+  shell: |
+    cd /usr/local/bin/nagios-4.5.14/
+    ./configure --with-command-group=nagcmd
+    make all
+    make install-groups-users
+    make install
+    make install-daemoninit
+    systemctl enable httpd.service
+    make install-init
+    make install-commandmode
+    make install-config
+    make install-webconf
+  become: true
+
+- name: configure firewall
+  ansible.posix.firewalld:
+    port: 80/tcp
+    zone: public
+    permanent: true
+    state: enabled
+
+- name: create nagiosadmin user account
+  ansible.builtin.shell: |
+     htpasswd -bc /usr/local/nagios/etc/htpasswd.users nagiosadmin tipqc
+  become: true
+
+- name: start apache
+  service:
+    name: httpd
+    state: started
+
+- name: start nagios service
+  service:
+    name: nagios
+    state: started
